@@ -1,6 +1,10 @@
+// Cette ligne attache un effet de "ripple" (ondulation) à tous les éléments du document
+//  avec la classe CSS .mdc-button. Cela est souvent utilisé pour améliorer l'aspect visuel des boutons.
 mdc.ripple.MDCRipple.attachTo(document.querySelector('.mdc-button'));
 
 // DEfault configuration - Change these if you have a different STUN or TURN server.
+// Cette section définit la configuration initiale pour la connexion WebRTC. Elle spécifie 
+// les serveurs ICE (Interactive Connectivity Establishment) qui sont utilisés pour aider à établir la connexion P2P.
 const configuration = {
   iceServers: [
     {
@@ -13,12 +17,19 @@ const configuration = {
   iceCandidatePoolSize: 10,
 };
 
+// Ces lignes déclarent des variables globales pour stocker l'état de la connexion, 
 let peerConnection = null;
+// les flux locaux et distants, 
 let localStream = null;
+// une boîte de dialogue de salle de discussion, 
 let remoteStream = null;
 let roomDialog = null;
+// et l'identifiant de la salle.
 let roomId = null;
 
+
+// Cette fonction initialise les gestionnaires d'événements pour les boutons 
+// de l'interface utilisateur et crée une instance de la boîte de dialogue MDC
 function init() {
   document.querySelector('#cameraBtn').addEventListener('click', openUserMedia);
   document.querySelector('#hangupBtn').addEventListener('click', hangUp);
@@ -27,6 +38,9 @@ function init() {
   roomDialog = new mdc.dialog.MDCDialog(document.querySelector('#room-dialog'));
 }
 
+// Cette fonction est appelée lorsqu'un utilisateur crée une nouvelle salle. Elle 
+// crée une connexion RTCPeerConnection, génère une offre SDP (Session Description Protocol),
+//  l'envoie à la base de données Firebase, et attend une réponse de l'autre utilisateur.
 async function createRoom() {
   document.querySelector('#createBtn').disabled = true;
   document.querySelector('#joinBtn').disabled = true;
@@ -106,6 +120,9 @@ await roomRef.update(roomWithAnswer);
   // Listen for remote ICE candidates above
 }
 
+// Cette fonction est appelée lorsqu'un utilisateur rejoint une salle existante. 
+// Elle récupère l'identifiant de la salle à partir de l'interface utilisateur, vérifie 
+// l'existence de la salle dans la base de données, crée une connexion RTCPeerConnection, et rejoint la salle.
 function joinRoom() {
   document.querySelector('#createBtn').disabled = true;
   document.querySelector('#joinBtn').disabled = true;
@@ -157,21 +174,44 @@ async function joinRoomById(roomId) {
   }
 }
 
-async function openUserMedia(e) {
-  const stream = await navigator.mediaDevices.getUserMedia(
-    { video: true, audio: true });
-  document.querySelector('#localVideo').srcObject = stream;
-  localStream = stream;
-  remoteStream = new MediaStream();
-  document.querySelector('#remoteVideo').srcObject = remoteStream;
+// Cette fonction est appelée lorsqu'un utilisateur demande l'accès à sa caméra et à son microphone. 
+// Elle utilise l'API navigator.mediaDevices.getUserMedia pour obtenir un flux vidéo/son local.
+// async function openUserMedia(e) {
+//   const stream = await navigator.mediaDevices.getUserMedia(
+//     { video: true, audio: true });
+//   document.querySelector('#localVideo').srcObject = stream;
+//   localStream = stream;
+//   remoteStream = new MediaStream();
+//   document.querySelector('#remoteVideo').srcObject = remoteStream;
 
-  console.log('Stream:', document.querySelector('#localVideo').srcObject);
-  document.querySelector('#cameraBtn').disabled = true;
-  document.querySelector('#joinBtn').disabled = false;
-  document.querySelector('#createBtn').disabled = false;
-  document.querySelector('#hangupBtn').disabled = false;
+//   console.log('Stream:', document.querySelector('#localVideo').srcObject);
+//   document.querySelector('#cameraBtn').disabled = true;
+//   document.querySelector('#joinBtn').disabled = false;
+//   document.querySelector('#createBtn').disabled = false;
+//   document.querySelector('#hangupBtn').disabled = false;
+
+// }
+
+async function openUserMedia(e) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    document.querySelector('#localVideo').srcObject = stream;
+    localStream = stream;
+    remoteStream = new MediaStream();
+    document.querySelector('#remoteVideo').srcObject = remoteStream;
+
+    console.log('Stream:', document.querySelector('#localVideo').srcObject);
+    document.querySelector('#cameraBtn').disabled = true;
+    document.querySelector('#joinBtn').disabled = false;
+    document.querySelector('#createBtn').disabled = false;
+    document.querySelector('#hangupBtn').disabled = false;
+  } catch (error) {
+    console.error('Error accessing user media:', error);
+  }
 }
 
+// Cette fonction est appelée lorsqu'un utilisateur met fin à la connexion. Elle arrête les flux 
+// vidéo/son locaux, ferme la connexion, supprime les candidats ICE, et actualise la page.
 async function hangUp(e) {
   const tracks = document.querySelector('#localVideo').srcObject.getTracks();
   tracks.forEach(track => {
@@ -212,6 +252,7 @@ async function hangUp(e) {
   document.location.reload(true);
 }
 
+// Cette fonction enregistre des écouteurs d'événements pour suivre les changements d'état de la connexion WebRTC.
 function registerPeerConnectionListeners() {
   peerConnection.addEventListener('icegatheringstatechange', () => {
     console.log(
@@ -232,6 +273,8 @@ function registerPeerConnectionListeners() {
   });
 }
 
+// Cette fonction collecte et échange des candidats ICE entre les pairs afin d'établir la connexion P2P.
+// Avant que l'appelant et l'appelant puissent se connecter, ils doivent également échanger des candidats ICE
 async function collectIceCandidates(roomRef, peerConnection,
   localName, remoteName) {
 const candidatesCollection = roomRef.collection(localName);
@@ -253,4 +296,5 @@ peerConnection.addIceCandidate(candidate);
 })
 }
 
+// Cette ligne appelle la fonction init() pour initialiser l'application une fois que le script est chargé.
 init();
