@@ -38,9 +38,45 @@ async function createRoom() {
   registerPeerConnectionListeners();
 
   // Add code for creating a room here
-  
+  const offer = await peerConnection.createOffer();
+  await peerConnection.setLocalDescription(offer);
+
+  const roomWithOffer = {
+    offer: {
+      type: offer.type,
+      sdp: offer.sdp
+    }
+  }
+  const roomRef = await db.collection('rooms').add(roomWithOffer);
+  const roomId = roomRef.id;
+  document.querySelector('#currentRoom').innerText = `Current room is ${roomId} - You are the caller!`
+
+  // si une réponse de l'appelant a été ajoutée.
+  roomRef.onSnapshot(async snapshot => {
+    console.log('Got updated room:', snapshot.data());
+    const data = snapshot.data();
+    if (!peerConnection.currentRemoteDescription && data.answer) {
+        console.log('Set remote description: ', data.answer);
+        const answer = new RTCSessionDescription(data.answer)
+        await peerConnection.setRemoteDescription(answer);
+    }
+});
+
+// Rejoindre le salon et saisissez l'ID de la salle
+const offer1 = roomSnapshot.data().offer;
+await peerConnection.setRemoteDescription(offer1);
+const answer = await peerConnection.createAnswer();
+await peerConnection.setLocalDescription(answer);
+
+const roomWithAnswer = {
+    answer: {
+        type: answer.type,
+        sdp: answer.sdp
+    }
+}
+await roomRef.update(roomWithAnswer);
   // Code for creating room above
-  
+
   localStream.getTracks().forEach(track => {
     peerConnection.addTrack(track, localStream);
   });
@@ -75,13 +111,13 @@ function joinRoom() {
   document.querySelector('#joinBtn').disabled = true;
 
   document.querySelector('#confirmJoinBtn').
-      addEventListener('click', async () => {
-        roomId = document.querySelector('#room-id').value;
-        console.log('Join room: ', roomId);
-        document.querySelector(
-            '#currentRoom').innerText = `Current room is ${roomId} - You are the callee!`;
-        await joinRoomById(roomId);
-      }, {once: true});
+    addEventListener('click', async () => {
+      roomId = document.querySelector('#room-id').value;
+      console.log('Join room: ', roomId);
+      document.querySelector(
+        '#currentRoom').innerText = `Current room is ${roomId} - You are the callee!`;
+      await joinRoomById(roomId);
+    }, { once: true });
   roomDialog.open();
 }
 
@@ -123,7 +159,7 @@ async function joinRoomById(roomId) {
 
 async function openUserMedia(e) {
   const stream = await navigator.mediaDevices.getUserMedia(
-      {video: true, audio: true});
+    { video: true, audio: true });
   document.querySelector('#localVideo').srcObject = stream;
   localStream = stream;
   remoteStream = new MediaStream();
@@ -179,7 +215,7 @@ async function hangUp(e) {
 function registerPeerConnectionListeners() {
   peerConnection.addEventListener('icegatheringstatechange', () => {
     console.log(
-        `ICE gathering state changed: ${peerConnection.iceGatheringState}`);
+      `ICE gathering state changed: ${peerConnection.iceGatheringState}`);
   });
 
   peerConnection.addEventListener('connectionstatechange', () => {
@@ -192,8 +228,29 @@ function registerPeerConnectionListeners() {
 
   peerConnection.addEventListener('iceconnectionstatechange ', () => {
     console.log(
-        `ICE connection state change: ${peerConnection.iceConnectionState}`);
+      `ICE connection state change: ${peerConnection.iceConnectionState}`);
   });
+}
+
+async function collectIceCandidates(roomRef, peerConnection,
+  localName, remoteName) {
+const candidatesCollection = roomRef.collection(localName);
+
+peerConnection.addEventListener('icecandidate', event => {
+if (event.candidate) {
+const json = event.candidate.toJSON();
+candidatesCollection.add(json);
+}
+});
+
+roomRef.collection(remoteName).onSnapshot(snapshot => {
+snapshot.docChanges().forEach(change => {
+if (change.type === "added") {
+const candidate = new RTCIceCandidate(change.doc.data());
+peerConnection.addIceCandidate(candidate);
+}
+});
+})
 }
 
 init();
